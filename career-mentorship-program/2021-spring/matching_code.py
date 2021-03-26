@@ -33,8 +33,8 @@ The program uses 3 factors to match mentees and mentors:
    comfortable assisting with. The algorithm matches mentees with mentors who have the
    right expertise.
 
-3. The last critera is that the mentor be at least one grade older than the mentee. Some
-   upperclassmen signed up as mentees, and some sophmores signed up as mentors, so this
+3. The last criteria is that the mentor be at least one grade older than the mentee. Some
+   upperclassmen signed up as mentees, and some sophomores signed up as mentors, so this
    needed to be enforced by the algorithm.
 
 
@@ -108,7 +108,6 @@ https://networkx.org/documentation/stable/reference/algorithms/bipartite.html
 https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.bipartite.matching.minimum_weight_full_matching.html
 """
 
-
 ### Constants ###
 
 DEBUG = True
@@ -117,37 +116,56 @@ DEBUG = True
 # eg. EMAIL = 1 means that students' emails are located in the column with index 1
 EMAIL = 1
 ROLE = 2
-MENTOR_ROLES = 3
-MENTOR_AVAILABLE_HOURS = 5
-MENTOR_EXPERIENCED_FIELDS = 6
-MENTOR_KNOWLEDGEABLE_TOPICS = 7
-MENTEE_ROLES = 9
-MENTEE_DESIRED_TOPICS = 10
-MENTEE_INTERESTED_FIELDS = 11
-YEAR = 13
+NAME = 3
+YEAR = 4
+GMT_TIMEZONE = 5
 
-# Multiple choice snswers to the survey question asking students if they want to be
+MENTOR_PREFER_GENDER = 6
+MENTOR_GENDER = 7
+MENTOR_PREFER_RACE = 8
+MENTOR_RACE = 9
+MENTOR_NUMBER_OF_MENTEES = 10  # req
+MENTOR_TIME_AVAILABLE = 11  # req
+MENTOR_CS_EXPERIENCE = 12  # req
+MENTOR_EXPERIENCED_FIELDS = 13  # req
+MENTOR_COMFORTABLE_HELPING = 14
+MENTOR_HOBBIES = 15
+MENTOR_OTHER_IDEAS = 16
+
+MENTEE_CS_EXPERIENCE = 17
+MENTEE_PREFER_GENDER = 18
+MENTEE_GENDER = 19
+MENTEE_PREFER_RACE = 20
+MENTEE_RACE = 21
+MENTEE_TIME_AVAILABLE = 22  # req
+MENTEE_DESIRED_TOPICS = 23  # req
+MENTEE_INTERESTED_FIELDS = 24  # req
+MENTEE_HOBBIES = 25
+MENTEE_OTHER_IDEAS = 26
+
+# Multiple choice answers to the survey question asking students if they want to be
 # a mentor or mentee
 MENTOR_ROLE = "Mentor"
 MENTEE_ROLE = "Mentee"
 
 # Numerical values for each year of college
 # Used for checking whether the mentor is older than the mentee
-YEAR_VALUES = { "Freshman": 1, "Sophomore": 2, "Junior": 3, "Senior": 4, "Masters": 4, "Alum": 5 }
+YEAR_VALUES = {"Freshman": 1, "Sophomore": 2, "Junior": 3, "Senior": 4, "Masters": 4, "Alum": 5}
 
 
 ### Data classes ###
 
 @dataclass
 class Student:
-
     """
     !!! Add any new fields that apply to both mentors and mentees !!!
     """
 
     email: str
+    name: str
     year: str
-    
+    time_zone: int
+
     @staticmethod
     def from_survey_response(row):
         """
@@ -158,13 +176,14 @@ class Student:
         """
         email = row[EMAIL]
         year = row[YEAR]
+        name = row[NAME]
+        time_zone = int(row[GMT_TIMEZONE])
 
-        return Student(email, year)
-    
+        return Student(email, year, name, time_zone)
+
 
 @dataclass(unsafe_hash=True)
 class Mentee(Student):
-
     """
     !!! Add any new fields that apply only to mentees !!!
     """
@@ -174,6 +193,21 @@ class Mentee(Student):
 
     # Which areas of the recruitment process the mentee wants help with
     desired_topics: Set[str]
+
+    # Hours per week the mentor is able to dedicate
+    available_time: int
+
+    # What are their hobbies/interests
+    hobbies: Set[str]
+
+    # if prefer gender
+    does_prefer_gender: bool
+
+    # if yes, their gender
+    gender: str
+
+    # how much cs experience
+    cs_experience: int
 
     def __init__(self, student):
         """
@@ -195,13 +229,43 @@ class Mentee(Student):
 
         mentee.interested_fields = frozenset(row[MENTEE_INTERESTED_FIELDS].split(";"))
         mentee.desired_topics = frozenset(row[MENTEE_DESIRED_TOPICS].split(";"))
+        mentee.hobbies = frozenset(row[MENTEE_HOBBIES].split(";"))
+        mentee.cs_experience = int(row[MENTEE_CS_EXPERIENCE])
+        mentee.available_time = int(row[MENTEE_TIME_AVAILABLE])
+
+        try:
+            mentee_does_prefer_gender_value = row[MENTEE_PREFER_GENDER]
+            if mentee_does_prefer_gender_value == "Yes":
+                mentee.does_prefer_gender = True
+            if mentee_does_prefer_gender_value == "No preference":
+                mentee.does_prefer_gender = False
+        except ValueError:
+            mentee.does_prefer_gender = False
+
+        try:
+            mentee_gender = row[MENTEE_GENDER]
+        except ValueError:
+            mentee_gender = ""
+
+        try:
+            mentee_does_prefer_race_value = row[MENTEE_PREFER_RACE]
+            if mentee_does_prefer_race_value == "Yes":
+                mentee.does_prefer_race = True
+            if mentee_does_prefer_race_value == "No preference":
+                mentee.does_prefer_race = False
+        except ValueError:
+            mentee.does_prefer_race = False
+
+        try:
+            mentee_race = row[MENTEE_RACE]
+        except ValueError:
+            mentee_race = ""
 
         return mentee
 
 
 @dataclass(unsafe_hash=True)
 class Mentor(Student):
-
     """
     !!! Add any new fields that apply only to mentors !!!
     """
@@ -212,8 +276,23 @@ class Mentor(Student):
     # Which areas of the recruitment process the mentor is comfortable helping with
     knowledgeable_topics: Set[str]
 
-    # Hours per week the mentor is able to dedicate
-    available_hours: int
+    # How many mentees
+    num_mentees: int
+
+    # Hours per week the mentor is able to dedicate to each mentee
+    available_time: int
+
+    # What are their hobbies/interests
+    hobbies: Set[str]
+
+    # if prefer gender
+    does_prefer_gender: bool
+
+    # if yes, their gender
+    gender: str
+
+    # how much cs experience
+    cs_experience: int
 
     # When there are multiple instances of the same mentor, this field distinguishes
     # between copies. It ranges from 0 to number of instances - 1. See the introduction
@@ -239,44 +318,48 @@ class Mentor(Student):
         mentor = Mentor(student)
 
         mentor.experienced_fields = frozenset(row[MENTOR_EXPERIENCED_FIELDS].split(";"))
-        mentor.knowledgeable_topics = frozenset(row[MENTOR_KNOWLEDGEABLE_TOPICS].split(";"))
+        mentor.knowledgeable_topics = frozenset(row[MENTOR_COMFORTABLE_HELPING].split(";"))
+        mentor.hobbies = frozenset(row[MENTOR_HOBBIES].split(";"))
+        mentor.num_mentees = int(row[MENTOR_NUMBER_OF_MENTEES])
+        mentor.cs_experience = int(row[MENTOR_CS_EXPERIENCE])
 
         # Note that when the survey asked mentors how many hours they were available, it
         # didn't require a numerical response (oops). Some students answered with more than
         # a simple number. The spreadsheet was edited to make all answers numbers before
         # running the code. In the future, we should always use Google Form's validation
         # feature.
+
+        mentor.available_time = int(row[MENTOR_TIME_AVAILABLE])
+
         try:
-            mentor.available_hours = int(row[MENTOR_AVAILABLE_HOURS])
+            mentor_does_prefer_gender_value = row[MENTOR_PREFER_GENDER]
+            if mentor_does_prefer_gender_value == "Yes":
+                mentor.does_prefer_gender = True
+            if mentor_does_prefer_gender_value == "No preference":
+                mentor.does_prefer_gender = False
         except ValueError:
-            # Some mentors didn't answer the question
-            mentor.available_hours = 1
+            mentor.does_prefer_gender = False
+
+        try:
+            mentor_gender = row[MENTOR_GENDER]
+        except ValueError:
+            mentor_gender = ""
+
+        try:
+            mentor_does_prefer_race_value = row[MENTOR_PREFER_RACE]
+            if mentor_does_prefer_race_value == "Yes":
+                mentor.does_prefer_race = True
+            if mentor_does_prefer_race_value == "No preference":
+                mentor.does_prefer_race = False
+        except ValueError:
+            mentor.does_prefer_race = False
+
+        try:
+            mentor_race = row[MENTOR_RACE]
+        except ValueError:
+            mentor_race = ""
 
         return mentor
-
-    # TODO: change the sign-up form to explicitly ask mentors how many mentees they can take on.
-    # Make sure to remove all usages of the available_hours field, and change this function into
-    # a simple field.
-    @property
-    def num_mentees_possible(self):
-        """
-        Determines how many mentees the mentor can be assigned to.
-
-        The first iteration of the sign-up form was sent out before writing the matching code,
-        so we didn't think this through. Ideally we would have told mentors the time commitment
-        for a single mentee and asked how many they could take on. Instead, we asked for the
-        number of hours they could commit to the program. This function turns converts the
-        number of hours into a number of mentees.
-        """
-
-        if self.available_hours <= 2:
-            # This assumes 1 hour per week per mentee, but in hindsight, each mentee probably
-            # requires a greater time commitment.
-            return self.available_hours
-        else:
-            # We don't want any mentor taking on more than 3 mentees.
-            return 3
-
 
     def copy_self_for_bipartite_graph(self):
         """
@@ -287,7 +370,7 @@ class Mentor(Student):
         returns - a list containing the existing and new Mentor instances
         """
         duplicates = [self]
-        for duplicate_number in range(1, self.num_mentees_possible):
+        for duplicate_number in range(1, self.num_mentees):
             duplicate = copy.copy(self)
             duplicate.copy_number = duplicate_number
             duplicates.append(duplicate)
@@ -373,28 +456,38 @@ class MentorshipEdge:
 
         CAREER_INTERESTS_MULTIPLIER = 5
         RECRUITMENT_TOPICS_MULTIPLIER = 3
-        MENTOR_NOT_OLDER_PENALTY = 10000000 # requires the mentor to be older
+        HOBBIES_TOPICS_MULTIPLIER = 1.5
+        MENTOR_NOT_OLDER_PENALTY = 10000000  # requires the mentor to be older
+        MENTOR_LESS_CS_EXPERIENCE_PENALTY = 10000000  # requires the mentor to be more experienced
         MENTOR_CLOSE_IN_YEAR_BONUS = 1
         MENTOR_TAKES_ON_ANOTHER_MENTEE_PENALTY = 100
+        GENDER_SAME_BONUS = 20  # bonus if both prefer same gender and are same gender
+        RACE_SAME_BONUS = 20  # bonus if both prefer same race and are same race
+        TIME_ZONE_DIFFERENCE_PENALTY = 5
+        TIME_AVAILABLE_DIFFERENCE_PENALTY = 20
 
         ### Compute weight based on matching critera ###
 
         weight = 0
         statistics = {}
 
+        # function to compute topic overlaps
+        def compute_with_overlap(num_overlap, num_mentee, stat_field, multiplier):
+            overlap_fraction = num_overlap / num_mentee
+            statistics[stat_field] = overlap_fraction
+            self.weight += multiplier * overlap_fraction
+
         # 1. Career interests
         num_interests_overlap = len(self.mentee.interested_fields & self.mentor.experienced_fields)
         num_mentee_interests = len(self.mentee.interested_fields)
-        interests_overlap_fraction = num_interests_overlap / num_mentee_interests
-        statistics["interests_overlap_fraction"] = interests_overlap_fraction
-        weight += CAREER_INTERESTS_MULTIPLIER * interests_overlap_fraction
+        compute_with_overlap(num_interests_overlap, num_mentee_interests, "interests_overlap_fraction",
+                             CAREER_INTERESTS_MULTIPLIER)
 
         # 2. Recruitment topics
         num_topics_overlap = len(self.mentee.desired_topics & self.mentor.knowledgeable_topics)
         num_mentee_topics = len(self.mentee.desired_topics)
-        topics_overlap_fraction = num_topics_overlap / num_mentee_topics
-        statistics['topics_overlap_fraction'] = topics_overlap_fraction
-        weight += RECRUITMENT_TOPICS_MULTIPLIER * topics_overlap_fraction
+        compute_with_overlap(num_topics_overlap, num_mentee_topics, "topics_overlap_fraction",
+                             RECRUITMENT_TOPICS_MULTIPLIER)
 
         # 3. Year
         year_difference = YEAR_VALUES[self.mentor.year] - YEAR_VALUES[self.mentee.year]
@@ -410,9 +503,66 @@ class MentorshipEdge:
         if year_difference == 1 or year_difference == 2:
             weight += MENTOR_CLOSE_IN_YEAR_BONUS
 
-
         """ !!! Add any new matching criteria here !!! """
 
+        # 4. Hobbies
+
+        num_hobbies_overlap = len(self.mentee.hobbies & self.mentor.hobbies)
+        num_mentee_hobbies = len(self.mentee.hobbies)
+        hobbies_overlap_fraction = num_hobbies_overlap / num_mentee_hobbies
+        statistics["hobbies_overlap_fraction"] = hobbies_overlap_fraction
+        weight += HOBBIES_TOPICS_MULTIPLIER * hobbies_overlap_fraction
+
+        # function for gender and race
+        def gender_and_race(mentor_preference, mentee_preference, stat_field1, stat_field2, bonus):
+            if mentor_preference and mentee_preference:
+                does_prefer = True
+                statistics[stat_field1] = True
+            else:
+                does_prefer = False
+                statistics[stat_field1] = False
+            if does_prefer:
+                preferred_and_same = self.mentor.actual == self.mentee.actual
+                statistics[stat_field2] = preferred_and_same
+            else:
+                preferred_and_same = False
+                statistics[stat_field2] = preferred_and_same
+            if does_prefer and preferred_and_same:
+                self.weight += bonus
+
+        # 5. Gender
+        # checks if both want to be matched with same gender and are same gender, if so add bonus
+        gender_and_race(self.mentor.does_prefer_gender, self.mentee.does_prefer_gender, 'does_prefer_gender',
+                        'gender_preferred_and_same', GENDER_SAME_BONUS)
+
+        # 6. Race
+        # checks if both want to be matched with same race and are same race, if so add bonus
+        gender_and_race(self.mentor.does_prefer_race, self.mentee.does_prefer_race, 'does_prefer_race',
+                        'race_preferred_and_same', RACE_SAME_BONUS)
+
+        # 7. Time Zone
+        mentor_time_zone = self.mentor.time_zone
+        mentee_time_zone = self.mentee.time_zone
+        time_difference = abs(mentor_time_zone - mentee_time_zone)
+        statistics['time_difference'] = time_difference
+        if time_difference >= 5:
+            weight -= TIME_ZONE_DIFFERENCE_PENALTY
+
+        # 8. Time available
+        mentor_time_available = self.mentor.time_available
+        mentee_time_available = self.mentee.time_available
+        time_available = abs(mentor_time_available - mentee_time_available)
+        statistics['time_available'] = time_available
+        if time_available > 2:
+            weight -= TIME_AVAILABLE_DIFFERENCE_PENALTY
+
+        # 9. CS experience
+        mentor_cs_experience = self.mentor.cs_experience
+        mentee_cs_experience = self.mentee.cs_experience
+        cs_experience_difference = mentor_cs_experience - mentee_cs_experience
+        statistics['cs_experience_difference'] = cs_experience_difference
+        if cs_experience_difference < 0:
+            weight -= MENTOR_LESS_CS_EXPERIENCE_PENALTY
 
         ### Handle many-to-one matches ###
 
@@ -467,9 +617,10 @@ class MentorshipGraph:
             for key, value in pairings.items()
             if type(key) is Mentee
         ]
-        
+
         return edges
-    
+
+
 def print_overall_matching_statistics(edges):
     """
     Calculates statistics to assess how well the algorithm performed according to the
@@ -481,7 +632,7 @@ def print_overall_matching_statistics(edges):
 
     if not DEBUG:
         return
-    
+
     overall_statistics = {}
 
     # For each matching criteria used to compute the weights
@@ -506,7 +657,7 @@ def save_optimal_matches_to_csv(edges, filename):
     """
 
     with open(filename, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',')   
+        writer = csv.writer(csvfile, delimiter=',')
 
         if DEBUG:
 
@@ -514,7 +665,9 @@ def save_optimal_matches_to_csv(edges, filename):
 
             writer.writerow([
                 "Mentee email",
+                "Mentee name",
                 "Mentor email",
+                "Mentor name",
                 "Interests overlap fraction",
                 "Topics overlap fraction",
                 "Year difference (mentor - mentee)",
@@ -524,7 +677,9 @@ def save_optimal_matches_to_csv(edges, filename):
             for edge in edges:
                 writer.writerow([
                     edge.mentee.email,
+                    edge.mentee.name,
                     edge.mentor.email,
+                    edge.mentor.name,
                     edge._statistics["interests_overlap_fraction"],
                     edge._statistics["topics_overlap_fraction"],
                     edge._statistics["year_difference"],
@@ -536,17 +691,21 @@ def save_optimal_matches_to_csv(edges, filename):
 
             writer.writerow([
                 "Mentee email",
-                "Mentor email"
+                "Mentee name",
+                "Mentor email",
+                "Mentor name"
             ])
-            
+
             for edge in edges:
                 writer.writerow([
                     edge.mentee.email,
-                    edge.mentor.email
+                    edge.mentee.name,
+                    edge.mentor.email,
+                    edge.mentor.name
                 ])
-            
 
-if __name__== "__main__":
+
+if __name__ == "__main__":
     survey_responses_filename = sys.argv[1]
     matches_filename = sys.argv[2]
 
