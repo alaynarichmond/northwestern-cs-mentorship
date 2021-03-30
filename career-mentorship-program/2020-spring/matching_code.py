@@ -118,7 +118,7 @@ DEBUG = True
 EMAIL = 1
 ROLE = 2
 MENTOR_ROLES = 3
-MENTOR_available_time = 5
+MENTOR_AVAILABLE_HOURS = 5
 MENTOR_EXPERIENCED_FIELDS = 6
 MENTOR_KNOWLEDGEABLE_TOPICS = 7
 MENTEE_ROLES = 9
@@ -213,7 +213,7 @@ class Mentor(Student):
     knowledgeable_topics: Set[str]
 
     # Hours per week the mentor is able to dedicate
-    available_time: int
+    available_hours: int
 
     # When there are multiple instances of the same mentor, this field distinguishes
     # between copies. It ranges from 0 to number of instances - 1. See the introduction
@@ -247,15 +247,15 @@ class Mentor(Student):
         # running the code. In the future, we should always use Google Form's validation
         # feature.
         try:
-            mentor.available_time = int(row[MENTOR_available_time])
+            mentor.available_hours = int(row[MENTOR_AVAILABLE_HOURS])
         except ValueError:
             # Some mentors didn't answer the question
-            mentor.available_time = 1
+            mentor.available_hours = 1
 
         return mentor
 
     # TODO: change the sign-up form to explicitly ask mentors how many mentees they can take on.
-    # Make sure to remove all usages of the available_time field, and change this function into
+    # Make sure to remove all usages of the available_hours field, and change this function into
     # a simple field.
     @property
     def num_mentees_possible(self):
@@ -269,10 +269,10 @@ class Mentor(Student):
         number of hours into a number of mentees.
         """
 
-        if self.available_time <= 2:
+        if self.available_hours <= 2:
             # This assumes 1 hour per week per mentee, but in hindsight, each mentee probably
             # requires a greater time commitment.
-            return self.available_time
+            return self.available_hours
         else:
             # We don't want any mentor taking on more than 3 mentees.
             return 3
